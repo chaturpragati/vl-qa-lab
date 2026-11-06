@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>VisionLink Mock - Dashboard</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="header"></div>
+<main>
+  <h1 data-testid="page-title">Fleet Dashboard</h1>
+  <div id="loading" class="spinner" data-testid="loading">Loading fleet summary...</div>
+  <div id="content" class="hidden">
+    <div class="cards">
+      <div class="card"><div class="label">Total Assets</div><div class="value" data-testid="kpi-total" id="kpi-total"></div></div>
+      <div class="card"><div class="label">Running</div><div class="value" data-testid="kpi-running" id="kpi-running"></div></div>
+      <div class="card"><div class="label">Idle</div><div class="value" data-testid="kpi-idle" id="kpi-idle"></div></div>
+      <div class="card"><div class="label">Open Alerts</div><div class="value" data-testid="kpi-alerts" id="kpi-alerts"></div></div>
+    </div>
+    <div class="panel">
+      <div class="toolbar">
+        <strong>Site map</strong>
+        <label for="site-filter">Site</label>
+        <select id="site-filter" data-testid="site-filter"><option value="">All sites</option></select>
+      </div>
+      <div class="map" id="map" data-testid="map"></div>
+    </div>
+  </div>
+</main>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+  requireLogin();
+  renderHeader("Dashboard");
+  const D = MockData;
+  const sel = document.getElementById("site-filter");
+  D.sites.forEach(function (s) { const o = document.createElement("option"); o.value = s; o.textContent = s; sel.appendChild(o); });
+
+  function draw() {
+    const site = sel.value;
+    const list = D.assets.filter(function (a) { return !site || a.site === site; });
+    document.getElementById("kpi-total").textContent = list.length;
+    document.getElementById("kpi-running").textContent = list.filter(function (a) { return a.status === "Running"; }).length;
+    document.getElementById("kpi-idle").textContent = list.filter(function (a) { return a.status === "Idle"; }).length;
+    const ids = list.map(function (a) { return a.id; });
+    document.getElementById("kpi-alerts").textContent = D.alerts.filter(function (a) { return !a.acknowledged && ids.indexOf(a.assetId) >= 0; }).length;
+    const map = document.getElementById("map");
+    map.innerHTML = "";
+    list.forEach(function (a, i) {
+      const p = document.createElement("div");
+      p.className = "pin";
+      p.setAttribute("data-testid", "map-pin-" + a.id);
+      p.title = a.id + " - " + a.model;
+      p.style.left = (5 + (i * 37) % 90) + "%";
+      p.style.top = (8 + (i * 53) % 80) + "%";
+      p.onclick = function () { window.location.href = "asset.html?id=" + a.id; };
+      map.appendChild(p);
+    });
+  }
+  sel.addEventListener("change", draw);
+
+  fakeFetch(D, 800).then(function () {
+    document.getElementById("loading").classList.add("hidden");
+    document.getElementById("content").classList.remove("hidden");
+    draw();
+  });
+</script>
+</body>
+</html>

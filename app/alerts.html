@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>VisionLink Mock - Alerts</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="header"></div>
+<main>
+  <h1 data-testid="page-title">Alerts</h1>
+  <div class="panel">
+    <div class="toolbar">
+      <select id="sev-filter" data-testid="severity-filter">
+        <option value="">All severities</option><option>Critical</option><option>Warning</option><option>Info</option>
+      </select>
+      <label><input type="checkbox" id="hide-ack" data-testid="hide-acknowledged"> Hide acknowledged</label>
+      <button id="ack-selected" data-testid="ack-selected">Acknowledge selected</button>
+    </div>
+    <table data-testid="alert-table">
+      <thead><tr><th><input type="checkbox" id="select-all" data-testid="select-all"></th><th>Alert ID</th><th>Asset</th><th>Type</th><th>Severity</th><th>Time</th><th>State</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p data-testid="alert-count" id="count"></p>
+  </div>
+</main>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+  requireLogin();
+  renderHeader("Alerts");
+  const D = MockData;
+  // persist acknowledgements for the browser session
+  const saved = JSON.parse(sessionStorage.getItem("vl_acked") || "[]");
+  D.alerts.forEach(function (a) { if (saved.indexOf(a.id) >= 0) a.acknowledged = true; });
+  function persist() {
+    sessionStorage.setItem("vl_acked", JSON.stringify(D.alerts.filter(function (a) { return a.acknowledged; }).map(function (a) { return a.id; })));
+  }
+  function render() {
+    const sev = document.getElementById("sev-filter").value;
+    const hide = document.getElementById("hide-ack").checked;
+    const list = D.alerts.filter(function (a) { return (!sev || a.severity === sev) && (!hide || !a.acknowledged); });
+    document.getElementById("rows").innerHTML = list.map(function (a) {
+      return '<tr data-testid="alert-row" data-alert-id="' + a.id + '">' +
+        '<td><input type="checkbox" class="sel" data-id="' + a.id + '" data-testid="select-' + a.id + '"></td>' +
+        "<td>" + a.id + '</td><td><a href="asset.html?id=' + a.assetId + '">' + a.assetId + "</a></td><td>" + a.type + "</td><td>" + badge(a.severity) + "</td><td>" + a.time + "</td>" +
+        '<td data-testid="state-' + a.id + '">' + (a.acknowledged ? "Acknowledged" : "Open") + "</td>" +
+        '<td><button class="secondary ack" data-id="' + a.id + '" data-testid="ack-' + a.id + '"' + (a.acknowledged ? " disabled" : "") + ">Acknowledge</button></td></tr>";
+    }).join("");
+    document.getElementById("count").textContent = list.length + " alerts shown, " + D.alerts.filter(function (a) { return !a.acknowledged; }).length + " open";
+    document.querySelectorAll(".ack").forEach(function (b) {
+      b.onclick = function () { ack([b.getAttribute("data-id")]); };
+    });
+  }
+  function ack(ids) {
+    D.alerts.forEach(function (a) { if (ids.indexOf(a.id) >= 0) a.acknowledged = true; });
+    persist(); render(); toast(ids.length + " alert(s) acknowledged");
+  }
+  document.getElementById("sev-filter").onchange = render;
+  document.getElementById("hide-ack").onchange = render;
+  document.getElementById("select-all").onchange = function (e) {
+    document.querySelectorAll(".sel").forEach(function (c) { c.checked = e.target.checked; });
+  };
+  document.getElementById("ack-selected").onclick = function () {
+    const ids = Array.from(document.querySelectorAll(".sel:checked")).map(function (c) { return c.getAttribute("data-id"); });
+    if (ids.length) ack(ids); else toast("Nothing selected");
+  };
+  render();
+</script>
+</body>
+</html>
