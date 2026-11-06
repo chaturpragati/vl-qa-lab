@@ -1,0 +1,26 @@
+{
+  "name": "vl-qa-lab",
+  "version": "1.0.0",
+  "description": "Playwright and WebdriverIO QA automation lab: page objects, accessibility, mobile, visual regression, CI/CD",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "http-server app -p 8080 -c-1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chaturpragati/vl-qa-lab.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/chaturpragati/vl-qa-lab/issues"
+  },
+  "homepage": "https://github.com/chaturpragati/vl-qa-lab#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.65.0",
+    "http-server": "^14.1.1"
+  }
+}

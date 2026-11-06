@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>VisionLink Mock - Asset Detail</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="header"></div>
+<main>
+  <p><a href="assets.html" data-testid="back-to-assets">&larr; Back to assets</a></p>
+  <div id="loading" class="spinner" data-testid="loading">Loading asset...</div>
+  <div id="notfound" class="hidden" data-testid="asset-not-found"><h1>Asset not found</h1></div>
+  <div id="detail" class="hidden">
+    <h1 data-testid="asset-title" id="title"></h1>
+    <div class="panel">
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="overview" data-testid="tab-overview" role="tab">Overview</button>
+        <button class="tab" data-tab="alerts" data-testid="tab-alerts" role="tab">Alerts</button>
+        <button class="tab" data-tab="service" data-testid="tab-service" role="tab">Service</button>
+        <button class="tab" data-tab="notes" data-testid="tab-notes" role="tab">Notes</button>
+      </div>
+      <div id="pane-overview" data-testid="pane-overview">
+        <div class="kv" id="kv"></div>
+      </div>
+      <div id="pane-alerts" class="hidden" data-testid="pane-alerts"></div>
+      <div id="pane-service" class="hidden" data-testid="pane-service">
+        <p>Schedule a service for this asset.</p>
+        <button id="open-modal" data-testid="schedule-service-button">Schedule Service</button>
+        <ul id="service-list" data-testid="service-list"></ul>
+      </div>
+      <div id="pane-notes" class="hidden" data-testid="pane-notes">
+        <label for="notes">Operator notes</label><br>
+        <textarea id="notes" rows="4" cols="60" data-testid="notes-input"></textarea><br>
+        <label><input type="checkbox" id="notify" data-testid="notify-checkbox"> Notify supervisor</label><br><br>
+        <fieldset style="border:1px solid #cbd2d9;border-radius:4px;width:320px">
+          <legend>Priority</legend>
+          <label><input type="radio" name="priority" value="Low" data-testid="priority-low" checked> Low</label>
+          <label><input type="radio" name="priority" value="High" data-testid="priority-high"> High</label>
+        </fieldset><br>
+        <button id="save-notes" data-testid="save-notes">Save Notes</button>
+        <div style="margin-top:20px">
+          <label for="attach">Attach file</label><br>
+          <input type="file" id="attach" data-testid="file-upload">
+          <div id="file-name" data-testid="file-name"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="modal" class="modal-backdrop hidden" data-testid="service-modal" role="dialog" aria-modal="true">
+  <div class="modal">
+    <h2>Schedule Service</h2>
+    <label for="svc-type">Service type</label>
+    <select id="svc-type" data-testid="service-type">
+      <option value="">Select...</option>
+      <option>250 hr service</option><option>500 hr service</option><option>Hydraulic filter</option><option>Track inspection</option>
+    </select>
+    <label for="svc-date">Date</label>
+    <input type="date" id="svc-date" data-testid="service-date">
+    <label for="svc-comment">Comment</label>
+    <textarea id="svc-comment" rows="3" data-testid="service-comment"></textarea>
+    <div id="svc-error" class="error hidden" data-testid="service-error"></div>
+    <div class="actions">
+      <button class="secondary" id="svc-cancel" data-testid="service-cancel">Cancel</button>
+      <button id="svc-submit" data-testid="service-submit">Schedule</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+  requireLogin();
+  renderHeader("Assets");
+  const id = new URLSearchParams(window.location.search).get("id");
+  const asset = MockData.assets.find(function (a) { return a.id === id; });
+
+  fakeFetch(asset, 600).then(function (a) {
+    document.getElementById("loading").classList.add("hidden");
+    if (!a) { document.getElementById("notfound").classList.remove("hidden"); return; }
+    document.getElementById("detail").classList.remove("hidden");
+    document.getElementById("title").textContent = a.id + " - " + a.model;
+    const rows = [["Serial", a.serial, "serial"], ["Model", a.model, "model"], ["Type", a.type, "type"], ["Site", a.site, "site"],
+      ["Status", a.status, "status"], ["Engine hours", a.hours, "hours"], ["Fuel level", a.fuel + "%", "fuel"], ["Last reported", a.lastReported, "last-reported"]];
+    document.getElementById("kv").innerHTML = rows.map(function (r) {
+      return '<div class="k">' + r[0] + '</div><div data-testid="detail-' + r[2] + '">' + r[1] + "</div>";
+    }).join("");
+    const al = MockData.alerts.filter(function (x) { return x.assetId === a.id; });
+    document.getElementById("pane-alerts").innerHTML = al.length
+      ? "<table><tbody>" + al.map(function (x) { return "<tr><td>" + x.type + "</td><td>" + badge(x.severity) + "</td><td>" + x.time + "</td></tr>"; }).join("") + "</tbody></table>"
+      : '<p data-testid="no-alerts">No alerts for this asset</p>';
+  });
+
+  document.querySelectorAll(".tab").forEach(function (t) {
+    t.onclick = function () {
+      document.querySelectorAll(".tab").forEach(function (x) { x.classList.remove("active"); });
+      t.classList.add("active");
+      ["overview", "alerts", "service", "notes"].forEach(function (n) {
+        document.getElementById("pane-" + n).classList.toggle("hidden", n !== t.getAttribute("data-tab"));
+      });
+    };
+  });
+
+  const modal = document.getElementById("modal");
+  document.getElementById("open-modal").onclick = function () { modal.classList.remove("hidden"); };
+  document.getElementById("svc-cancel").onclick = function () { modal.classList.add("hidden"); };
+  document.getElementById("svc-submit").onclick = function () {
+    const t = document.getElementById("svc-type").value, d = document.getElementById("svc-date").value;
+    const err = document.getElementById("svc-error");
+    if (!t || !d) { err.textContent = "Service type and date are required"; err.classList.remove("hidden"); return; }
+    err.classList.add("hidden");
+    const li = document.createElement("li");
+    li.setAttribute("data-testid", "service-item");
+    li.textContent = t + " on " + d;
+    document.getElementById("service-list").appendChild(li);
+    modal.classList.add("hidden");
+    toast("Service scheduled");
+  };
+  document.getElementById("save-notes").onclick = function () { toast("Notes saved"); };
+  document.getElementById("attach").onchange = function (e) {
+    document.getElementById("file-name").textContent = e.target.files.length ? e.target.files[0].name : "";
+  };
+</script>
+</body>
+</html>

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>VisionLink Mock - Assets</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="header"></div>
+<main>
+  <h1 data-testid="page-title">Assets</h1>
+  <div class="panel">
+    <div class="toolbar">
+      <input id="search" placeholder="Search by ID, serial or model" data-testid="asset-search">
+      <select id="status-filter" data-testid="status-filter">
+        <option value="">All statuses</option>
+        <option>Running</option><option>Idle</option><option>Off</option><option>Maintenance</option>
+      </select>
+      <select id="type-filter" data-testid="type-filter"><option value="">All types</option></select>
+      <label><input type="checkbox" id="low-fuel" data-testid="low-fuel-only"> Low fuel only (&lt;25%)</label>
+      <button class="secondary" id="reset" data-testid="reset-filters">Reset</button>
+      <div class="spacer"></div>
+      <button id="export" data-testid="export-csv">Export CSV</button>
+    </div>
+    <div id="loading" class="spinner" data-testid="loading">Loading assets...</div>
+    <table id="grid" class="hidden" data-testid="asset-table">
+      <thead>
+        <tr>
+          <th class="sortable" data-sort="id" data-testid="th-id">Asset ID</th>
+          <th class="sortable" data-sort="serial" data-testid="th-serial">Serial</th>
+          <th class="sortable" data-sort="model" data-testid="th-model">Model</th>
+          <th class="sortable" data-sort="type">Type</th>
+          <th class="sortable" data-sort="site">Site</th>
+          <th class="sortable" data-sort="status" data-testid="th-status">Status</th>
+          <th class="sortable" data-sort="hours" data-testid="th-hours">Hours</th>
+          <th class="sortable" data-sort="fuel" data-testid="th-fuel">Fuel %</th>
+        </tr>
+      </thead>
+      <tbody id="rows" data-testid="asset-rows"></tbody>
+    </table>
+    <div id="empty" class="spinner hidden" data-testid="no-results">No assets match your filters</div>
+    <div class="pager">
+      <button class="secondary" id="prev" data-testid="page-prev">Previous</button>
+      <span id="page-info" data-testid="page-info"></span>
+      <button class="secondary" id="next" data-testid="page-next">Next</button>
+      <span style="margin-left:auto" data-testid="result-count" id="count"></span>
+    </div>
+  </div>
+</main>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+  requireLogin();
+  renderHeader("Assets");
+  const PAGE_SIZE = 10;
+  let page = 1, sortKey = "id", sortDir = 1;
+  const D = MockData;
+  const typeSel = document.getElementById("type-filter");
+  Array.from(new Set(D.assets.map(function (a) { return a.type; }))).sort().forEach(function (t) {
+    const o = document.createElement("option"); o.textContent = t; typeSel.appendChild(o);
+  });
+
+  function filtered() {
+    const q = document.getElementById("search").value.toLowerCase();
+    const st = document.getElementById("status-filter").value;
+    const ty = typeSel.value;
+    const low = document.getElementById("low-fuel").checked;
+    return D.assets.filter(function (a) {
+      return (!q || (a.id + a.serial + a.model).toLowerCase().indexOf(q) >= 0) &&
+        (!st || a.status === st) && (!ty || a.type === ty) && (!low || a.fuel < 25);
+    }).sort(function (a, b) {
+      return (a[sortKey] > b[sortKey] ? 1 : a[sortKey] < b[sortKey] ? -1 : 0) * sortDir;
+    });
+  }
+
+  function render() {
+    const list = filtered();
+    const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+    if (page > pages) page = pages;
+    const slice = list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    document.getElementById("rows").innerHTML = slice.map(function (a) {
+      return '<tr data-testid="asset-row" data-asset-id="' + a.id + '">' +
+        '<td><a href="asset.html?id=' + a.id + '" data-testid="asset-link-' + a.id + '">' + a.id + "</a></td>" +
+        "<td>" + a.serial + "</td><td>" + a.model + "</td><td>" + a.type + "</td><td>" + a.site + "</td>" +
+        "<td>" + badge(a.status) + "</td><td>" + a.hours + "</td><td>" + a.fuel + "</td></tr>";
+    }).join("");
+    document.getElementById("empty").classList.toggle("hidden", list.length > 0);
+    document.getElementById("grid").classList.toggle("hidden", list.length === 0);
+    document.getElementById("page-info").textContent = "Page " + page + " of " + pages;
+    document.getElementById("count").textContent = list.length + " assets";
+    document.getElementById("prev").disabled = page <= 1;
+    document.getElementById("next").disabled = page >= pages;
+  }
+
+  ["search", "status-filter", "type-filter", "low-fuel"].forEach(function (id) {
+    document.getElementById(id).addEventListener("input", function () { page = 1; render(); });
+  });
+  document.getElementById("reset").onclick = function () {
+    document.getElementById("search").value = ""; document.getElementById("status-filter").value = "";
+    typeSel.value = ""; document.getElementById("low-fuel").checked = false; page = 1; render();
+  };
+  document.getElementById("prev").onclick = function () { page--; render(); };
+  document.getElementById("next").onclick = function () { page++; render(); };
+  document.querySelectorAll("th.sortable").forEach(function (th) {
+    th.onclick = function () {
+      const k = th.getAttribute("data-sort");
+      if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = 1; }
+      render();
+    };
+  });
+  document.getElementById("export").onclick = function () {
+    const list = filtered();
+    const csv = ["id,serial,model,type,site,status,hours,fuel"].concat(list.map(function (a) {
+      return [a.id, a.serial, a.model, a.type, a.site, a.status, a.hours, a.fuel].join(",");
+    })).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob); link.download = "assets.csv";
+    document.body.appendChild(link); link.click(); link.remove();
+    toast("Exported " + list.length + " assets");
+  };
+
+  fakeFetch(null, 700).then(function () {
+    document.getElementById("loading").classList.add("hidden");
+    render();
+  });
+</script>
+</body>
+</html>
